@@ -1,0 +1,26 @@
+[package]
+name = "codex-reset"
+version = "0.4.0-alpha.1"
+edition = "2024"
+description = "One-time Codex usage-reset scheduling for macOS and Ubuntu"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/jinzer0/codex-reset"
+publish = false
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[profile.release]
+lto = "thin"
+strip = true

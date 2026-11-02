@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.build/
+vendor/
+artifacts/
+.omx/
+*.sqlite3
+dist/
+build/
+*.egg-info/
+.venv*/
+
+
+target/
