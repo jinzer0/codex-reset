@@ -1,0 +1,104 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag (for example v0.4.0-alpha.1)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Install Rust tooling
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+          rustup target add '${{ matrix.target }}'
+      - name: Verify release tag matches package version
+        shell: bash
+        run: |
+          package_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "codex-reset") | .version')
+          test "$RELEASE_TAG" = "v$package_version"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+      - name: Install Linux static linker
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked --all-targets
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: sh scripts/test-install.sh
+      - name: Build standalone executable
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo build --locked --release --target '${{ matrix.target }}'
+      - name: Smoke-test standalone executable
+        run: |
+          target/${{ matrix.target }}/release/codex-reset --help
+          target/${{ matrix.target }}/release/codex-reset --version
+      - name: Package executable and license notices
+        run: sh scripts/package-release.sh '${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/release/*.tar.gz
+            dist/release/*.sha256
+          if-no-files-found: error
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist/release
+      - name: Verify and combine archive checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist/release
+          test "$(find . -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 3
+          cat ./*.sha256 | LC_ALL=C sort -k2 > SHA256SUMS
+          sha256sum --check SHA256SUMS
+          cp ../../install.sh install.sh
+      - name: Create reviewable draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--draft --verify-tag --title "$RELEASE_TAG" --generate-notes)
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            args+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" \
+            dist/release/*.tar.gz dist/release/SHA256SUMS dist/release/install.sh
