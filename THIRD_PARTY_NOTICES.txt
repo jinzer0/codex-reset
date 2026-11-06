@@ -1,4 +1,4 @@
-Third-party notices for codex-reset 0.4.0-alpha.1
+Third-party notices for codex-reset 0.4.0-alpha.2
 
 Generated from Cargo.lock for Linux musl and macOS release targets.
 Each dependency retains its own license and copyright.

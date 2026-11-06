@@ -62,3 +62,12 @@ The working tree now preserves detailed, bounded RPC diagnostics and before/afte
 ## Codex 0.167.0 compatibility — 2026-11-07 KST
 
 See [0.167.0 verification](CODEX_0_167_VERIFICATION.md) for the installed binary's offline schema export, version-specific native mock coverage and validation results. No account lookup, reset request or reservation was sent to an actual Codex process for this work.
+
+## v0.4.0-alpha.2 release preparation — 2026-11-07 KST
+
+- Merged source: **82 Rust tests passed** (55 library, 4 CLI parser/gate, 13 native-fixture CLI, 10 fake stdio safety).
+- Formatting, Clippy with warnings denied, shell syntax and diff checks passed.
+- **19 offline installer checks passed**, including the new default release tag and explicit installation of the previous tag.
+- macOS arm64 release build and `--help` / `--version` smoke checks passed; the executable reports `0.4.0-alpha.2`.
+- Source packaging passed. Platform release builds and their checks run in the tag-triggered GitHub Release workflow.
+- No real Codex account lookup, reset reservation, redemption or OS service installation was performed.

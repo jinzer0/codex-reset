@@ -9,14 +9,14 @@ Usage: sh install.sh [--repo OWNER/REPO] [--version vVERSION] [--bin-dir DIRECTO
 Installs codex-reset from GitHub Releases without Rust, Python or sudo.
 --repo      GitHub repository (default: jinzer0/codex-reset).
             Alternatively set CODEX_RESET_REPO.
---version   Release tag (default: v0.4.0-alpha.1).
+--version   Release tag (default: v0.4.0-alpha.2).
 --bin-dir   Destination directory (default: $HOME/.local/bin).
 EOF
 }
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 need_value() { [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires a value"; }
 repo=${CODEX_RESET_REPO:-jinzer0/codex-reset}
-version=v0.4.0-alpha.1
+version=v0.4.0-alpha.2
 bin_dir=${HOME:?HOME is required}/.local/bin
 while [ "$#" -gt 0 ]; do
     case "$1" in
