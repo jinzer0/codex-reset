@@ -1,3 +1,7 @@
+# Unreleased
+
+Accept Codex CLI `0.167.0` alongside `0.165.0` and `0.166.0`. Native fixtures cover version discovery, read-only commands and one-attempt scheduling without contacting Codex or a real account. See [0.167.0 verification](CODEX_0_167_VERIFICATION.md) for the offline protocol checks and validation boundary. Existing release downloads are unchanged.
+
 # v0.4.0-alpha.1 — Rust standalone preview
 
 The public CLI is a native Rust executable. Users no longer need Python or pipx. An interactive menu and `check`, `schedule`, `status`, `cancel` commands support macOS launchd and Ubuntu systemd scheduling.

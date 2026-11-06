@@ -5,7 +5,7 @@
 A command-line tool that schedules one attempt to **reset Codex usage** at a specified time.
 
 - **Platforms** — macOS (Apple Silicon and Intel), Ubuntu/Linux x86_64
-- **Codex CLI** — `0.165.0` or `0.166.0`
+- **Codex CLI (current source)** — `0.165.0`, `0.166.0`, or `0.167.0`
 - **Account** — A ChatGPT account signed in to Codex CLI with an available reset credit
 
 > This is an experimental, unofficial project. Production reset redemption remains unverified. [Verification details →](docs/RUST_VERIFICATION.md)
@@ -16,6 +16,8 @@ A command-line tool that schedules one attempt to **reset Codex usage** at a spe
 curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0-alpha.1/install.sh
 sh install.sh
 ```
+
+The installer downloads `v0.4.0-alpha.1`, which accepts Codex `0.165.0` and `0.166.0`. For `0.167.0`, build this source checkout with `cargo build --locked --release` and run `target/release/codex-reset`; support is not yet in a published release.
 
 ## Usage
 
