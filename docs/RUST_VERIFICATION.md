@@ -58,3 +58,7 @@ The working tree now preserves detailed, bounded RPC diagnostics and before/afte
 - Regression cases include unchanged usage after a `reset` response, delayed state reflection, failed/account-mismatched readback, lost response after a synthetic state change, natural usage rollover, credit expiry, missing usage data, zero baselines, evidence persistence failure and old database compatibility.
 - Long stderr cannot displace the primary error. Credential-pattern redaction includes camelCase token keys; raw RPC parameters and error data are not logged.
 - All new reset scenarios use local fake stdio servers or native fixtures. No real account lookup, reservation, redemption or OS service installation was performed for this change. Production redemption remains unverified.
+
+## Codex 0.167.0 compatibility — 2026-11-07 KST
+
+See [0.167.0 verification](CODEX_0_167_VERIFICATION.md) for the installed binary's offline schema export, version-specific native mock coverage and validation results. No account lookup, reset request or reservation was sent to an actual Codex process for this work.
