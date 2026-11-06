@@ -71,7 +71,11 @@ codex-reset cancel JOB_ID
 
 Replace `JOB_ID` with the reservation ID in the first column of `status`.
 
-> **Check the recorded outcome in `status`.** The status `completed` records a recognized outcome, including `noCredit` detected before a reset request. The outcome `reset` means the server reported a reset.
+> **`completed` alone does not confirm a successful reset.**
+> `completed` records a recognized outcome, including `noCredit` detected before a reset request. `reset` means the server reported a reset.
+> Check the server outcome and `Usage verification` in `status`.
+
+Use `codex-reset status --json` to see recorded usage before and after the attempt and detailed errors. [Result meanings →](docs/RESET_VERIFICATION.md)
 
 ## Running and canceling reservations
 
