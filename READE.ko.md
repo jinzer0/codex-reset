@@ -18,6 +18,7 @@ sh install.sh
 ```
 
 ## 사용법
+
 ```sh
 codex-reset
 ```
@@ -69,6 +70,7 @@ codex-reset cancel JOB_ID
 `JOB_ID`에는 `status` 출력 첫 열에 표시된 예약 ID를 입력하세요.
 
 > **`completed`만으로 초기화 성공을 뜻하지는 않습니다.**
+> `completed`는 처리 결과가 기록되었다는 뜻이며, 초기화 요청 전에 확인한 `noCredit`도 포함합니다. `reset`은 서버가 초기화를 수행했다고 응답한 경우입니다.
 > `status`의 서버 응답과 `Usage verification`(사용량 검증 결과)을 함께 확인하세요.
 
 초기화 시도 전후의 사용량과 상세 오류는 `codex-reset status --json`으로 확인할 수 있습니다. [결과별 의미 →](docs/RESET_VERIFICATION.md)
