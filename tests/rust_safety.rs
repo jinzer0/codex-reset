@@ -1,7 +1,7 @@
 //! End-to-end safety checks with a shell-only, local stdio RPC fixture.
 //! No Codex binary, authentication store, network connection or OS job is used.
 use codex_reset::{
-    account::{consume_checked, read_snapshot},
+    account::{ResetEvidence, consume_checked, consume_recorded, read_snapshot},
     rpc::{CONSUME, Session, Transport},
     store::{Binding, Job, Store, now},
 };
@@ -225,6 +225,85 @@ fn lost_response_is_unknown_and_cannot_be_retried() {
             .is_err()
     );
     assert_eq!(rpc.sent_methods, before_retry);
+    drop(rpc);
+    assert_eq!(fixture.consume_requests().len(), 1);
+}
+
+#[test]
+fn before_snapshot_and_detailed_lost_response_are_durable() {
+    let fixture = FakeServer::new();
+    let mut rpc = fixture.start("lost-response", true);
+    let store = fixture.store();
+    let job = claimed_job(&store, binding(&mut rpc));
+    let mut evidence = ResetEvidence::default();
+    let mut saw_before_write = false;
+    let error = consume_recorded(&mut rpc, &job, &mut evidence, |report| {
+        if report.response_received_at.is_none() && report.dispatch_error.is_none() {
+            saw_before_write = true;
+            assert!(fixture.consume_requests().is_empty());
+            assert!(report.before.is_some());
+        }
+        store.record_evidence(&job.id, &serde_json::to_value(report)?)
+    })
+    .unwrap_err();
+    assert!(saw_before_write);
+    let error = format!("{error:#}");
+    assert!(error.contains("account/rateLimitResetCredit/consume"));
+    assert!(error.contains("phase=read/decode"));
+    let reopened = Store::open(&fixture.root.path().join("state")).unwrap();
+    let saved = reopened.show(&job.id).unwrap().evidence.unwrap();
+    assert_eq!(saved["before"]["available_reset_credits"], 1);
+    assert!(
+        saved["dispatch_error"]
+            .as_str()
+            .unwrap()
+            .contains("App-server exited")
+    );
+    assert!(saved["server_outcome"].is_null());
+    assert!(reopened.claim(&job.id).unwrap().is_none());
+    drop(rpc);
+    assert_eq!(fixture.consume_requests().len(), 1);
+}
+
+#[test]
+fn failure_to_persist_before_snapshot_prevents_any_reset_request() {
+    let fixture = FakeServer::new();
+    let mut rpc = fixture.start("normal", true);
+    let store = fixture.store();
+    let job = claimed_job(&store, binding(&mut rpc));
+    let mut evidence = ResetEvidence::default();
+    assert!(
+        consume_recorded(&mut rpc, &job, &mut evidence, |_| {
+            anyhow::bail!("Synthetic evidence storage failure")
+        })
+        .is_err()
+    );
+    assert!(!rpc.reset_sent());
+    drop(rpc);
+    assert!(fixture.consume_requests().is_empty());
+    assert!(store.claim(&job.id).unwrap().is_none());
+}
+
+#[test]
+fn persistence_failure_after_response_keeps_server_outcome_in_error() {
+    let fixture = FakeServer::new();
+    let mut rpc = fixture.start("normal", true);
+    let store = fixture.store();
+    let job = claimed_job(&store, binding(&mut rpc));
+    let mut evidence = ResetEvidence::default();
+    let error = consume_recorded(&mut rpc, &job, &mut evidence, |report| {
+        if report.response_received_at.is_some() {
+            anyhow::bail!("Synthetic evidence storage failure");
+        }
+        store.record_evidence(&job.id, &serde_json::to_value(report)?)
+    })
+    .unwrap_err();
+    let message = format!("{error:#}");
+    assert!(message.contains("server outcome=reset"));
+    assert!(message.contains("Synthetic evidence storage failure"));
+    assert_eq!(evidence.server_outcome.as_deref(), Some("reset"));
+    assert!(rpc.reset_sent());
+    assert!(store.claim(&job.id).unwrap().is_none());
     drop(rpc);
     assert_eq!(fixture.consume_requests().len(), 1);
 }

@@ -4,6 +4,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
@@ -36,6 +37,7 @@ pub struct Job {
     pub claimed_at: Option<f64>,
     pub finished_at: Option<f64>,
     pub binding: Binding,
+    pub evidence: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -94,6 +96,10 @@ impl Store {
                 claimed_at REAL,
                 finished_at REAL,
                 binding TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS job_evidence (
+                job_id TEXT PRIMARY KEY,
+                document TEXT NOT NULL
             );",
         )?;
         Ok(store)
@@ -138,14 +144,16 @@ impl Store {
 
     pub fn list(&self) -> Result<Vec<Job>> {
         let connection = self.connect()?;
-        let mut statement = connection.prepare("SELECT * FROM jobs ORDER BY due_at, id")?;
+        let mut statement = connection.prepare(
+            "SELECT jobs.*, job_evidence.document FROM jobs LEFT JOIN job_evidence ON jobs.id=job_evidence.job_id ORDER BY due_at, id",
+        )?;
         let rows = statement.query_map([], row_job)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     pub fn show(&self, id: &str) -> Result<Job> {
         self.connect()?
-            .query_row("SELECT * FROM jobs WHERE id=?1", [id], row_job)
+            .query_row("SELECT jobs.*, job_evidence.document FROM jobs LEFT JOIN job_evidence ON jobs.id=job_evidence.job_id WHERE jobs.id=?1", [id], row_job)
             .optional()?
             .context("Reservation was not found")
     }
@@ -186,7 +194,7 @@ impl Store {
         let mut connection = self.connect()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut job = transaction
-            .query_row("SELECT * FROM jobs WHERE id=?1", [id], row_job)
+            .query_row("SELECT jobs.*, job_evidence.document FROM jobs LEFT JOIN job_evidence ON jobs.id=job_evidence.job_id WHERE jobs.id=?1", [id], row_job)
             .optional()?
             .context("Reservation was not found")?;
         // Taking the lock can block: read wall time only after acquiring it.
@@ -250,6 +258,18 @@ impl Store {
         )?;
         Ok(())
     }
+
+    /// Save evidence independently of the terminal result, including during readback.
+    pub fn record_evidence(&self, id: &str, evidence: &Value) -> Result<()> {
+        let changed = self.connect()?.execute(
+            "INSERT INTO job_evidence (job_id, document)
+             SELECT id, ?2 FROM jobs WHERE id=?1 AND status IN ('claimed', 'completed', 'unknown')
+             ON CONFLICT(job_id) DO UPDATE SET document=excluded.document",
+            params![id, serde_json::to_string(evidence)?],
+        )?;
+        ensure!(changed == 1, "Evidence requires a claimed or finished job");
+        Ok(())
+    }
 }
 
 fn current_uid() -> u32 {
@@ -279,6 +299,17 @@ fn row_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
     let binding = serde_json::from_str(&binding).map_err(|error| {
         rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, Box::new(error))
     })?;
+    let evidence: Option<String> = row.get(11)?;
+    let evidence = evidence
+        .map(|text| serde_json::from_str(&text))
+        .transpose()
+        .map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                11,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
     Ok(Job {
         id: row.get(0)?,
         idempotency_key: row.get(1)?,
@@ -291,6 +322,7 @@ fn row_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         claimed_at: row.get(8)?,
         finished_at: row.get(9)?,
         binding,
+        evidence,
     })
 }
 
@@ -414,6 +446,47 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(&root.path().join("state")).unwrap();
         (root, store)
+    }
+
+    #[test]
+    fn evidence_survives_terminal_result_and_database_reopen() {
+        let (root, store) = fixture();
+        let job = store.create_at(100.0, binding(), 90.0).unwrap();
+        let before = serde_json::json!({"phase":"consume","before":{"usedPercent":80}});
+        assert!(store.record_evidence(&job.id, &before).is_err());
+        store.claim_with_clock(&job.id, || 101.0).unwrap().unwrap();
+        store.record_evidence(&job.id, &before).unwrap();
+        assert_eq!(store.show(&job.id).unwrap().evidence, Some(before));
+        store.finish(&job.id, Some("reset"), None).unwrap();
+        let verified =
+            serde_json::json!({"server_outcome":"reset","verification":{"status":"confirmed"}});
+        store.record_evidence(&job.id, &verified).unwrap();
+        let reopened = Store::open(&root.path().join("state")).unwrap();
+        assert_eq!(reopened.show(&job.id).unwrap().evidence, Some(verified));
+        assert_eq!(
+            reopened.list().unwrap()[0].outcome.as_deref(),
+            Some("reset")
+        );
+        assert!(
+            reopened
+                .claim_with_clock(&job.id, || 102.0)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn opening_legacy_database_preserves_jobs_and_adds_optional_evidence() {
+        let (root, store) = fixture();
+        let job = store.create_at(100.0, binding(), 90.0).unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute_batch("DROP TABLE job_evidence")
+            .unwrap();
+        let reopened = Store::open(&root.path().join("state")).unwrap();
+        assert_eq!(reopened.show(&job.id).unwrap(), job);
+        assert_eq!(reopened.list().unwrap(), vec![job]);
     }
 
     #[test]
