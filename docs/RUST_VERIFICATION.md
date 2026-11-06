@@ -48,3 +48,13 @@ Review tightened HTTPS authority checks and process-group cleanup. The leader st
 - Sleep/reboot/logout behavior has not been exercised. The Ubuntu user had lingering enabled; no setting was changed.
 - The results above are local pre-publication verification. Current target-build results are recorded in https://github.com/jinzer0/codex-reset/actions. Cross-compiled artifacts do not imply native hardware integration coverage.
 - Public source repository: https://github.com/jinzer0/codex-reset. Project license: MIT. Dependency notices are distributed with the release archives. This project does not publish a PyPI package.
+
+## Reset diagnostics and readback — 2026-11-05 KST
+
+The working tree now preserves detailed, bounded RPC diagnostics and before/after verification evidence. Server outcomes and usage verification are recorded separately; recovery uses fresh read-only sessions and never retries a reset request. See [reset verification](RESET_VERIFICATION.md).
+
+- `cargo test --locked --all-targets`: **79 passed** (53 library, 4 CLI parser/gate, 12 native-fixture CLI, 10 fake stdio safety).
+- `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings` and `git diff --check`: passed.
+- Regression cases include unchanged usage after a `reset` response, delayed state reflection, failed/account-mismatched readback, lost response after a synthetic state change, natural usage rollover, credit expiry, missing usage data, zero baselines, evidence persistence failure and old database compatibility.
+- Long stderr cannot displace the primary error. Credential-pattern redaction includes camelCase token keys; raw RPC parameters and error data are not logged.
+- All new reset scenarios use local fake stdio servers or native fixtures. No real account lookup, reservation, redemption or OS service installation was performed for this change. Production redemption remains unverified.

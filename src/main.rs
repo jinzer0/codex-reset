@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
 use codex_reset::{
-    account::{choose_credit, consume_checked, read_snapshot},
-    rpc::Session,
+    account::{ResetEvidence, choose_credit, consume_recorded, read_snapshot},
+    rpc::{Session, diagnostic_text},
     runtime::{Runtime, home},
     services,
     store::{Binding, Store, local_zone, now, parse_time},
@@ -178,6 +178,12 @@ fn emit(value: &Value, as_json: bool) -> Result<()> {
                 .map(|s| format!("  ({s})"))
                 .unwrap_or_default()
         );
+        if let Some(status) = job
+            .pointer("/evidence/verification/status")
+            .and_then(Value::as_str)
+        {
+            println!("  Usage verification: {status}");
+        }
     };
     if let Some(j) = value.get("job") {
         print_job(j);
@@ -222,17 +228,52 @@ fn worker(store: &Store, id: &str, execute_reset: bool) -> Result<Value> {
             sha256: b.binary_sha256.clone(),
             version: b.binary_version.clone(),
         };
-        runtime.verify()?;
-        let mut rpc = Session::live(&runtime, &b.codex_home, true)?;
-        read_snapshot(&mut rpc, Some(&b.account_fingerprint))?;
+        runtime.verify().context("preflight: verify Codex binary")?;
+        let mut rpc =
+            Session::live(&runtime, &b.codex_home, true).context("preflight: start app-server")?;
+        read_snapshot(&mut rpc, Some(&b.account_fingerprint))
+            .context("preflight: verify signed-in account")?;
         loop {
             if let Some(claimed) = store.claim(id)? {
-                let result = consume_checked(&mut rpc, &claimed);
-                let job = match result {
-                    Ok(outcome) => store.finish(id, Some(&outcome), None)?,
-                    Err(_) => store.finish(id, None, Some("dispatch_failed_or_unknown"))?,
+                let mut evidence = ResetEvidence::default();
+                let result = consume_recorded(&mut rpc, &claimed, &mut evidence, |evidence| {
+                    store.record_evidence(id, &serde_json::to_value(evidence)?)
+                });
+                let attempted = rpc.reset_sent();
+                let job = match &result {
+                    Ok(outcome) => store.finish(id, Some(outcome), None)?,
+                    Err(error) => store.finish(
+                        id,
+                        None,
+                        Some(&diagnostic_text(&format!("{}: {error:#}", evidence.phase))),
+                    )?,
                 };
-                return Ok(json!({"job":job,"reset_requests_sent":u8::from(rpc.reset_sent())}));
+                // Persist the dispatch result first. Every subsequent session is read-only,
+                // including recovery after a lost consume response or app-server exit.
+                drop(rpc);
+                if attempted {
+                    for delay in [0, 250, 750] {
+                        thread::sleep(Duration::from_millis(delay));
+                        let observation = Session::live(&runtime, &b.codex_home, false)
+                            .context("Start read-only verification session")
+                            .and_then(|mut reader| {
+                                read_snapshot(&mut reader, Some(&b.account_fingerprint))
+                            });
+                        evidence.observe(observation);
+                        store.record_evidence(id, &serde_json::to_value(&evidence)?)?;
+                        if evidence.verification.status == "confirmed"
+                            || evidence
+                                .server_outcome
+                                .as_deref()
+                                .is_some_and(|value| value != "reset")
+                        {
+                            break;
+                        }
+                    }
+                }
+                return Ok(
+                    json!({"job":store.show(&job.id)?,"reset_requests_sent":u8::from(attempted)}),
+                );
             }
             let current = store.show(id)?;
             if current.status != "pending" {
@@ -241,8 +282,8 @@ fn worker(store: &Store, id: &str, execute_reset: bool) -> Result<Value> {
             thread::sleep(Duration::from_millis(50));
         }
     })();
-    if result.is_err() {
-        store.fail_preflight(id, "preflight_failed")?;
+    if let Err(error) = &result {
+        store.fail_preflight(id, &diagnostic_text(&format!("preflight: {error:#}")))?;
     }
     result
 }
@@ -381,7 +422,7 @@ fn run() -> Result<()> {
 }
 fn main() {
     if let Err(error) = run() {
-        eprintln!("Error: {error}");
+        eprintln!("Error: {}", diagnostic_text(&format!("{error:#}")));
         std::process::exit(2);
     }
 }
