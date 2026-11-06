@@ -48,3 +48,7 @@ Review tightened HTTPS authority checks and process-group cleanup. The leader st
 - Sleep/reboot/logout behavior has not been exercised. The Ubuntu user had lingering enabled; no setting was changed.
 - The results above are local pre-publication verification. Current target-build results are recorded in https://github.com/jinzer0/codex-reset/actions. Cross-compiled artifacts do not imply native hardware integration coverage.
 - Public source repository: https://github.com/jinzer0/codex-reset. Project license: MIT. Dependency notices are distributed with the release archives. This project does not publish a PyPI package.
+
+## Codex 0.167.0 compatibility — 2026-11-07 KST
+
+See [0.167.0 verification](CODEX_0_167_VERIFICATION.md) for the installed binary's offline schema export, version-specific native mock coverage and validation results. No account lookup, reset request or reservation was sent to an actual Codex process for this work.
