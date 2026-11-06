@@ -23,6 +23,32 @@ const READ_METHODS: &[&str] = &[
     "account/rateLimits/read",
 ];
 
+fn sensitive_offset(text: &str) -> Option<usize> {
+    let lower = text.to_ascii_lowercase();
+    [
+        "authorization",
+        "bearer ",
+        "access_token",
+        "accesstoken",
+        "refresh_token",
+        "refreshtoken",
+        "id_token",
+        "idtoken",
+        "api_key",
+        "api-key",
+        "apikey",
+        "password",
+        "secret",
+        "cookie",
+        "\"token\"",
+        "token=",
+        "token:",
+    ]
+    .iter()
+    .filter_map(|key| lower.find(key))
+    .min()
+}
+
 /// Bounded diagnostics only: never persist raw RPC parameters or credentials.
 pub fn diagnostic_text(text: &str) -> String {
     let bounded: String = text.chars().take(8192).collect();
@@ -32,29 +58,7 @@ pub fn diagnostic_text(text: &str) -> String {
             .chars()
             .map(|c| if c.is_control() { ' ' } else { c })
             .collect();
-        let lower = line.to_ascii_lowercase();
-        let sensitive = [
-            "authorization",
-            "bearer ",
-            "access_token",
-            "accesstoken",
-            "refresh_token",
-            "refreshtoken",
-            "id_token",
-            "idtoken",
-            "api_key",
-            "api-key",
-            "apikey",
-            "password",
-            "secret",
-            "cookie",
-            "\"token\"",
-            "token=",
-            "token:",
-        ]
-        .iter()
-        .filter_map(|key| lower.find(key))
-        .min();
+        let sensitive = sensitive_offset(&line);
         let visible = sensitive.map_or(line.as_str(), |index| &line[..index]);
         let mut words = Vec::new();
         for word in visible.split_whitespace() {
@@ -76,6 +80,10 @@ pub fn diagnostic_text(text: &str) -> String {
             clean.push_str("[redacted]");
         }
         output.push(clean);
+        // Credential values may continue on later lines; omit the remaining text.
+        if sensitive.is_some() {
+            break;
+        }
     }
     let mut output = output.join(" | ");
     if output.len() > 4096 {
@@ -166,19 +174,27 @@ impl Session {
         let (stderr_tx, stderr_done) = sync_channel(1);
         thread::spawn(move || {
             let mut reader = BufReader::new(stderr);
+            let mut omit_remaining = false;
             loop {
                 let mut line = Vec::new();
                 match reader.by_ref().take(4097).read_until(b'\n', &mut line) {
                     Ok(0) | Err(_) => break,
                     _ => (),
                 }
+                if omit_remaining {
+                    continue;
+                }
                 let clean = if line.len() > 4096 {
+                    // The omitted tail could contain a credential label.
+                    omit_remaining = true;
                     if line.last() != Some(&b'\n') && reader.skip_until(b'\n').is_err() {
                         break;
                     }
                     "[oversized stderr line omitted]".to_owned()
                 } else {
-                    diagnostic_text(&String::from_utf8_lossy(&line))
+                    let text = String::from_utf8_lossy(&line);
+                    omit_remaining = sensitive_offset(&text).is_some();
+                    diagnostic_text(&text)
                 };
                 if let Ok(mut lines) = tail.lock() {
                     lines.push_back(clean);
@@ -459,6 +475,30 @@ done
     }
 
     #[test]
+    fn diagnostics_omit_credential_continuations() {
+        for label in ["Cookie:", "password:", "accessToken:"] {
+            let text = diagnostic_text(&format!(
+                "authentication failed; {label}\n  private-value\nmore-private-value"
+            ));
+            assert!(text.contains("authentication failed"));
+            assert!(text.contains("[redacted]"));
+            assert!(!text.contains("private-value"));
+        }
+    }
+
+    #[test]
+    fn stderr_omits_credentials_split_across_reads() {
+        let mut rpc = fake_session(
+            r#"printf 'authentication failed; Cookie:\n' >&2; sleep 0.05; printf '  session=private-session\npassword-value\n' >&2; exit 7"#,
+        );
+        let error = rpc.request("account/read", json!({})).unwrap_err();
+        let text = format!("{error:#}");
+        assert!(text.contains("authentication failed"), "{text}");
+        assert!(!text.contains("private-session"), "{text}");
+        assert!(!text.contains("password-value"), "{text}");
+    }
+
+    #[test]
     fn stderr_is_drained_and_oversized_lines_are_omitted() {
         let mut rpc = fake_session(
             r#"i=0; while [ "$i" -lt 20000 ]; do printf '0123456789'; i=$((i + 1)); done >&2; printf '\nlast diagnostic\n' >&2; exit 7"#,
@@ -466,7 +506,7 @@ done
         let error = rpc.request("account/read", json!({})).unwrap_err();
         let text = format!("{error:#}");
         assert!(text.contains("oversized stderr line omitted"), "{text}");
-        assert!(text.contains("last diagnostic"), "{text}");
+        assert!(!text.contains("last diagnostic"), "{text}");
         assert!(text.len() < 5000);
     }
 
