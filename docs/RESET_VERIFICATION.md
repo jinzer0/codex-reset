@@ -37,6 +37,8 @@ If the response is lost, the job stays `unknown`. Read-only recovery may observe
 
 The local state directory contains `rust-jobs.sqlite3` and per-job `logs/JOB_ID.out.log` / `logs/JOB_ID.err.log`. Defaults are `~/Library/Application Support/codex-reset` on macOS and `${XDG_STATE_HOME:-~/.local/state}/codex-reset` on Linux. JSON status includes local paths and account fingerprints; inspect it before sharing. Existing job records remain available after upgrading; older jobs have no verification evidence.
 
-## Validation boundary
+## Validation
 
-The implementation is tested with local stdio fixtures that simulate server replies and account-state changes. These tests do not establish production redemption success. No real reset is required to run the Rust test suite.
+Scheduled production resets with `0.4.0-alpha.2` and Codex CLI `0.167.0` were verified on Ubuntu x86_64 and macOS Apple Silicon on 2026-11-07 KST. Both jobs recorded server outcome `reset`, verification `confirmed`, usage reduced to zero and one fewer available reset credit. See [live system verification](RUST_VERIFICATION.md#live-system-verification--2026-11-07-kst).
+
+The Rust test suite uses local stdio fixtures to simulate server replies and account-state changes.

@@ -28,8 +28,6 @@ The exported schema confirms the required `requiresOpenaiAuth`, workspace routin
 - `cargo build --locked --release`: passed on macOS arm64.
 - Release executable `--help` / `--version` and source-archive packaging: passed. The archive includes both READMEs and this verification document; its local Markdown links resolve.
 
-## Boundary
+## Live system verification
 
-The actual Codex executable was used only for version/help output and offline schema generation. All account and reset messages were sent exclusively to synthetic fixtures. No real account lookup, reservation, reset request, authentication change or OS service installation was performed.
-
-Schema compatibility and mock tests do not establish successful redemption against the production service. No release was published by this verification.
+Scheduled production resets with `codex-reset 0.4.0-alpha.2` and the installed Codex CLI `0.167.0` were verified on Ubuntu x86_64 and macOS Apple Silicon on 2026-11-07 KST. Both jobs completed with server outcome `reset` and verification `confirmed`. Usage was observed at zero and the available reset-credit count decreased by one on each account. See [live system verification](RUST_VERIFICATION.md#live-system-verification--2026-11-07-kst) for the results.

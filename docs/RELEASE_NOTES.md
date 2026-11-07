@@ -6,7 +6,9 @@ Reset attempts now save before/after usage and credit counts, server outcomes an
 
 Diagnostics retain bounded error context and redact credential patterns, including their continuation lines. Existing reservation records remain readable. English and Korean installation instructions and the installer default point to this release.
 
-Available builds: macOS arm64, macOS x86_64 and Linux x86_64-musl. This remains an experimental prerelease; production account redemption has not been tested.
+Available builds: macOS arm64, macOS x86_64 and Linux x86_64-musl.
+
+Scheduled production resets with `0.4.0-alpha.2` and Codex CLI `0.167.0` were verified on Ubuntu x86_64 (systemd) and macOS Apple Silicon (launchd) on 2026-11-07 KST. Usage fell from 100% to 0% on Ubuntu and from 81% to 0% on macOS. Each account's available reset-credit count fell from 3 to 2, and both jobs recorded server outcome `reset` and verification `confirmed`. See [live system verification](RUST_VERIFICATION.md#live-system-verification--2026-11-07-kst).
 
 # v0.4.0-alpha.1 — Rust standalone preview
 
@@ -18,4 +20,4 @@ Rust uses a separate `rust-jobs.sqlite3` database. It does not migrate, cancel, 
 
 Release configuration targets macOS arm64/x86_64 and Linux x86_64-musl. Linux arm64 is not included. Accepted installed Codex versions are 0.165.0 and 0.166.0; this project's independent version number does not track Codex's version.
 
-See RUST_VERIFICATION.md for limits. Real-account redemption is intentionally untested. Source: https://github.com/jinzer0/codex-reset. Project license: MIT. Third-party notices accompany each release archive.
+See [Rust verification](RUST_VERIFICATION.md). Source: https://github.com/jinzer0/codex-reset. Project license: MIT. Third-party notices accompany each release archive.

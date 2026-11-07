@@ -8,7 +8,7 @@
 - **Codex CLI** — `0.165.0`, `0.166.0` 또는 `0.167.0`
 - **계정** — Codex CLI에 로그인한 ChatGPT 계정과 사용 가능한 초기화 크레딧
 
-> 실험 단계의 비공식 프로젝트입니다. 실제 계정에서 크레딧을 사용한 초기화는 아직 테스트하지 않았습니다. [검증 내용 →](docs/RUST_VERIFICATION.md)
+> 비공식 프로젝트입니다. Codex CLI `0.167.0`으로 Ubuntu x86_64와 macOS Apple Silicon에서 실제 예약 실행, 사용량 초기화와 리셋권 차감을 확인했습니다. [검증 내용 →](docs/RUST_VERIFICATION.md)
 
 ## 설치
 

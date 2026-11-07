@@ -8,7 +8,7 @@ A command-line tool that schedules one attempt to **reset Codex usage** at a spe
 - **Codex CLI** — `0.165.0`, `0.166.0`, or `0.167.0`
 - **Account** — A ChatGPT account signed in to Codex CLI with an available reset credit
 
-> This is an experimental, unofficial project. Production reset redemption remains unverified. [Verification details →](docs/RUST_VERIFICATION.md)
+> This is an unofficial project. Scheduled resets with Codex CLI `0.167.0` have been verified on Ubuntu x86_64 and macOS Apple Silicon, including usage reset and reset-credit consumption. [Verification details →](docs/RUST_VERIFICATION.md)
 
 ## Installation
 
