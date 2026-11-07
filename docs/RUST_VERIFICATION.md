@@ -59,7 +59,6 @@ Review tightened HTTPS authority checks and process-group cleanup. The leader st
 - Installed macOS 0.166 managed preferences loading conflicts with the previous strict mock sandbox. It was not weakened. The previous standalone debug 0.165 harness is Python-era evidence, not a Rust end-to-end result.
 - Sleep/reboot/logout behavior has not been exercised. The Ubuntu user had lingering enabled; no setting was changed.
 - The results above are local pre-publication verification. Current target-build results are recorded in https://github.com/jinzer0/codex-reset/actions. Cross-compiled artifacts do not imply native hardware integration coverage.
-- Public source repository: https://github.com/jinzer0/codex-reset. Project license: MIT. Dependency notices are distributed with the release archives. This project does not publish a PyPI package.
 
 ## Reset diagnostics and readback — 2026-11-05 KST
 

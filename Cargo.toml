@@ -4,7 +4,7 @@ version = "0.4.0-alpha.2"
 edition = "2024"
 description = "One-time Codex usage-reset scheduling for macOS and Ubuntu"
 readme = "README.md"
-license = "MIT"
+license = "Unlicense"
 repository = "https://github.com/jinzer0/codex-reset"
 publish = false
 
