@@ -1,3 +1,20 @@
+# v0.4.0
+
+## Changes
+
+- Support Codex CLI `0.165.0`, `0.166.0` and `0.167.0`.
+- Show reset outcomes and verification in `status`, with usage and credit details in `status --json`.
+- Switch the project license to Unlicense.
+
+## Installation
+
+```sh
+curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0/install.sh
+sh install.sh
+```
+
+Available for macOS Apple Silicon, macOS Intel and Linux x86_64.
+
 # v0.4.0-alpha.2 — Codex 0.167 support and reset verification
 
 ## Changes

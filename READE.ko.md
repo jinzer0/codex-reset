@@ -14,7 +14,7 @@
 ## 설치
 
 ```sh
-curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0-alpha.2/install.sh
+curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0/install.sh
 sh install.sh
 ```
 

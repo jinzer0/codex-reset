@@ -76,8 +76,8 @@ pass 'explicit alpha, notices and license, spaces, atomic staging, no execution'
 grep -q '/download/v0.4.0-alpha.1/' "$TEST_REQUEST_LOG"
 env HOME="$work_dir/home" PATH="$work_dir/tools:$PATH" CODEX_RESET_REPO= sh "$root/install.sh" > "$work_dir/stdout"
 [ -x "$work_dir/home/.local/bin/codex-reset" ]
-grep -q 'https://github.com/jinzer0/codex-reset/releases/download/v0.4.0-alpha.2/' "$TEST_REQUEST_LOG"
-pass 'default repository, pinned alpha and user directory'
+grep -q 'https://github.com/jinzer0/codex-reset/releases/download/v0.4.0/' "$TEST_REQUEST_LOG"
+pass 'default repository, pinned stable release and user directory'
 TEST_SYSTEM=Darwin TEST_ARCH=arm64 run_installer --bin-dir "$work_dir/mac-arm" > "$work_dir/stdout"
 grep -q 'codex-reset-aarch64-apple-darwin.tar.gz' "$TEST_REQUEST_LOG"
 TEST_SYSTEM=Darwin TEST_ARCH=x86_64 run_installer --bin-dir "$work_dir/mac-intel" > "$work_dir/stdout"
