@@ -1,3 +1,9 @@
+# v0.4.1
+
+- Add support for Codex CLI `0.167.1`, `0.167.2`, `0.168.0`, `0.169.0`, `0.169.1`, `0.170.0`, `0.171.0`, and `0.172.0`.
+- Run the native stdio mock scenarios against all 11 supported releases, including reservation previews, authorization checks, single dispatch, and read-only recovery. [Verification](RUST_VERIFICATION.md#codex-01720-compatibility)
+- Install with the versioned `install.sh` from the [v0.4.1 release](https://github.com/jinzer0/codex-reset/releases/tag/v0.4.1).
+
 # v0.4.0
 
 ## Changes
