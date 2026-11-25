@@ -14,7 +14,7 @@ A command-line tool that schedules **Codex usage resets** at a specified time.
 ## Installation
 
 ```sh
-curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.1/install.sh
+curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.2/install.sh
 sh install.sh
 ```
 
