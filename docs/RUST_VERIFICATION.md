@@ -70,6 +70,14 @@ The working tree now preserves detailed, bounded RPC diagnostics and before/afte
 - Long stderr cannot displace the primary error. Credential-pattern redaction includes camelCase token keys; raw RPC parameters and error data are not logged.
 - Regression scenarios use local fake stdio servers or native fixtures.
 
+## Codex 0.172.0 compatibility
+
+On 2026-11-25 KST, the official latest stable release was [Codex CLI 0.172.0](https://github.com/openai/codex/releases/tag/rust-v0.172.0).
+
+The supported versions are `0.165.0`, `0.166.0`, `0.167.0`, `0.167.1`, `0.167.2`, `0.168.0`, `0.169.0`, `0.169.1`, `0.170.0`, `0.171.0`, and `0.172.0`. Representative older versions, unlisted patches, and prereleases are rejected before app-server startup.
+
+The official Linux x64 binary for each version exported its experimental app-server JSON schemas with isolated configuration. The schemas validated the mock handshake, account and rate-limit reads, and consume requests and responses. The public CLI tests run the same 12 native stdio scenarios per supported version, including read-only checks, scheduling and execution gates, account mismatches, exactly-once synthetic consumption, and readback errors. The fixtures use temporary state and synthetic accounts. Production reset verification remains documented for Codex CLI 0.167.0.
+
 ## Codex 0.167.0 compatibility — 2026-11-07 KST
 
 See [0.167.0 verification](CODEX_0_167_VERIFICATION.md) for the installed binary's offline schema export, version-specific native mock coverage and validation results.

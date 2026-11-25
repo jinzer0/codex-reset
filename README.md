@@ -5,7 +5,7 @@
 A command-line tool that schedules **Codex usage resets** at a specified time.
 
 - **Platforms** — macOS (Apple Silicon and Intel), Ubuntu/Linux x86_64
-- **Codex CLI** — `0.165.0`, `0.166.0`, or `0.167.0`
+- **Codex CLI** — 11 verified stable releases from `0.165.0` through `0.172.0`. [Exact versions and mock coverage](docs/RUST_VERIFICATION.md#codex-01720-compatibility)
 - **Account** — A ChatGPT account signed in to Codex CLI with an available reset credit
 
 > [!NOTE]
@@ -14,7 +14,7 @@ A command-line tool that schedules **Codex usage resets** at a specified time.
 ## Installation
 
 ```sh
-curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0/install.sh
+curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.1/install.sh
 sh install.sh
 ```
 

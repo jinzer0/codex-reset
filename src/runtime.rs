@@ -12,7 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const SUPPORTED: &[&str] = &["0.165.0", "0.166.0", "0.167.0"];
+pub const SUPPORTED: &[&str] = &[
+    "0.165.0", "0.166.0", "0.167.0", "0.167.1", "0.167.2", "0.168.0", "0.169.0", "0.169.1",
+    "0.170.0", "0.171.0", "0.172.0",
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Runtime {

@@ -5,7 +5,7 @@
 지정한 시각에 **Codex 사용량 초기화**를 예약하는 명령줄 도구입니다.
 
 - **지원 환경** — macOS (Apple Silicon·Intel), Ubuntu/Linux x86_64
-- **Codex CLI** — `0.165.0`, `0.166.0` 또는 `0.167.0`
+- **Codex CLI** — `0.165.0`부터 `0.172.0`까지 검증한 안정판 11개. [지원 버전과 모의 테스트](docs/RUST_VERIFICATION.md#codex-01720-compatibility)
 - **계정** — Codex CLI에 로그인한 ChatGPT 계정과 사용 가능한 초기화 크레딧
 
 > [!NOTE]
@@ -14,7 +14,7 @@
 ## 설치
 
 ```sh
-curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.0/install.sh
+curl -fsSLo install.sh https://github.com/jinzer0/codex-reset/releases/download/v0.4.1/install.sh
 sh install.sh
 ```
 

@@ -1,9 +1,9 @@
 //! Execute the public CLI against a tiny native stdio fixture. The fixture only
-//! uses only stdio and synthetic files below its temporary HOME; it has no
+//! uses stdio and synthetic files below its temporary HOME. It has no
 //! network, authentication-file, or OS job code.
 use codex_reset::{
     rpc::CONSUME,
-    runtime::Runtime,
+    runtime::{Runtime, SUPPORTED},
     store::{Binding, Store, now},
 };
 use serde_json::{Value, json};
@@ -14,6 +14,18 @@ use std::{
     process::{Command, Output, Stdio},
 };
 
+const VERIFIED_VERSIONS: &[&str] = &[
+    "0.165.0", "0.166.0", "0.167.0", "0.167.1", "0.167.2", "0.168.0", "0.169.0", "0.169.1",
+    "0.170.0", "0.171.0", "0.172.0",
+];
+
+fn for_each_verified_version(test: impl Fn(&str, Fixture)) {
+    for &version in VERIFIED_VERSIONS {
+        eprintln!("Testing Codex CLI {version}");
+        test(version, Fixture::with_version(version));
+    }
+}
+
 struct Fixture {
     root: tempfile::TempDir,
     binary: PathBuf,
@@ -22,10 +34,6 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new() -> Self {
-        Self::with_version("0.167.0")
-    }
-
     fn with_version(version: &str) -> Self {
         let root = tempfile::tempdir().unwrap();
         let source = root.path().join("fake-codex.c");
@@ -181,8 +189,8 @@ fn future_time() -> String {
 
 #[test]
 fn public_check_uses_native_fixture_readonly_and_creates_no_state() {
-    for version in ["0.165.0", "0.166.0", "0.167.0"] {
-        let fixture = Fixture::with_version(version);
+    assert_eq!(SUPPORTED, VERIFIED_VERSIONS);
+    for_each_verified_version(|version, fixture| {
         let result = fixture.json(&["check"]);
         assert_eq!(result["codex_version"], version);
         assert_eq!(result["account"]["email"], "m***@example.invalid");
@@ -192,14 +200,32 @@ fn public_check_uses_native_fixture_readonly_and_creates_no_state() {
             80
         );
         assert_eq!(result["reset_requests_sent"], 0);
+        let requests = fixture.requests();
+        assert_eq!(
+            requests[0]["params"]["capabilities"]["experimentalApi"],
+            true
+        );
+        assert_eq!(requests[1], json!({"method":"initialized"}));
+        assert_eq!(requests[2]["params"], json!({"refreshToken":false}));
+        assert_eq!(
+            requests[3]["params"],
+            json!({"excludeResetCreditDetails":false})
+        );
         fixture.assert_read_only_requests();
         fixture.assert_no_reservation();
-    }
+    });
 }
 
 #[test]
 fn public_check_rejects_unapproved_versions_before_starting_app_server() {
-    for version in ["0.164.0", "0.167.1", "0.168.0", "0.167.0-alpha.1"] {
+    for version in [
+        "0.164.0",
+        "0.165.1",
+        "0.167.0-alpha.1",
+        "0.172.1",
+        "0.173.0",
+        "0.174.0-alpha.5",
+    ] {
         let fixture = Fixture::with_version(version);
         let output = fixture.output(&["check"]);
         assert_eq!(output.status.code(), Some(2), "version {version}");
@@ -214,45 +240,47 @@ fn public_check_rejects_unapproved_versions_before_starting_app_server() {
 
 #[test]
 fn public_schedule_dry_run_never_creates_a_job_or_service() {
-    let fixture = Fixture::new();
-    let result = fixture.json(&[
-        "schedule",
-        "--at",
-        &future_time(),
-        "--timezone",
-        "UTC",
-        "--dry-run",
-    ]);
-    assert_eq!(result["dry_run"], true);
-    assert_eq!(result["reset_requests_sent"], 0);
-    assert_eq!(result["account"]["available_reset_credits"], 1);
-    assert!(result["at"].as_str().is_some());
-    fixture.assert_read_only_requests();
-    fixture.assert_no_reservation();
+    for_each_verified_version(|_, fixture| {
+        let result = fixture.json(&[
+            "schedule",
+            "--at",
+            &future_time(),
+            "--timezone",
+            "UTC",
+            "--dry-run",
+        ]);
+        assert_eq!(result["dry_run"], true);
+        assert_eq!(result["reset_requests_sent"], 0);
+        assert_eq!(result["account"]["available_reset_credits"], 1);
+        assert!(result["at"].as_str().is_some());
+        fixture.assert_read_only_requests();
+        fixture.assert_no_reservation();
+    });
 }
 
 #[test]
 fn public_schedule_without_noninteractive_authorization_creates_nothing() {
-    let fixture = Fixture::new();
-    let output = fixture.output(&["schedule", "--at", &future_time(), "--timezone", "UTC"]);
-    assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--yes"));
-    fixture.assert_no_reservation();
+    for_each_verified_version(|_, fixture| {
+        let output = fixture.output(&["schedule", "--at", &future_time(), "--timezone", "UTC"]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("--yes"));
+        fixture.assert_no_reservation();
+    });
 }
 
 #[test]
 fn public_worker_gate_rejects_execution_before_any_state_is_opened() {
-    let fixture = Fixture::new();
-    let output = fixture.output(&["_run", "--id", "00000000"]);
-    assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--execute-reset"));
-    fixture.assert_no_reservation();
+    for_each_verified_version(|_, fixture| {
+        let output = fixture.output(&["_run", "--id", "00000000"]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("--execute-reset"));
+        fixture.assert_no_reservation();
+    });
 }
 
 #[test]
 fn public_worker_completes_one_fake_reset_and_second_invocation_does_not_dispatch() {
-    for version in ["0.165.0", "0.166.0", "0.167.0"] {
-        let fixture = Fixture::with_version(version);
+    for_each_verified_version(|_, fixture| {
         let binding = fixture.binding();
         let store = Store::open(&fixture.state).unwrap();
         let job = store.create(now() + 0.2, binding).unwrap();
@@ -301,151 +329,158 @@ fn public_worker_completes_one_fake_reset_and_second_invocation_does_not_dispatc
             consume_requests[0]["params"],
             json!({"idempotencyKey":job.idempotency_key,"creditId":"mock-credit"})
         );
-    }
+    });
 }
 
 #[test]
 fn public_worker_account_mismatch_fails_before_claim_or_reset() {
-    let fixture = Fixture::new();
-    let mut binding = fixture.binding();
-    binding.account_fingerprint = "different-synthetic-account".into();
-    let store = Store::open(&fixture.state).unwrap();
-    let job = store.create(now() + 0.2, binding).unwrap();
-    let output = fixture.output(&["_run", "--id", &job.id, "--execute-reset"]);
-    assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("account differs"));
-    let failed = store.show(&job.id).unwrap();
-    assert_eq!(failed.status, "failed");
-    assert!(failed.error.as_deref().unwrap().contains("preflight"));
-    assert!(failed.error.as_deref().unwrap().contains("account differs"));
-    assert_eq!(failed.claimed_at, None);
-    assert_eq!(failed.outcome, None);
-    let second = fixture.json(&["_run", "--id", &job.id, "--execute-reset"]);
-    assert_eq!(second["reset_requests_sent"], 0);
-    assert_eq!(store.show(&job.id).unwrap(), failed);
-    fixture.assert_read_only_requests();
+    for_each_verified_version(|_, fixture| {
+        let mut binding = fixture.binding();
+        binding.account_fingerprint = "different-synthetic-account".into();
+        let store = Store::open(&fixture.state).unwrap();
+        let job = store.create(now() + 0.2, binding).unwrap();
+        let output = fixture.output(&["_run", "--id", &job.id, "--execute-reset"]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("account differs"));
+        let failed = store.show(&job.id).unwrap();
+        assert_eq!(failed.status, "failed");
+        assert!(failed.error.as_deref().unwrap().contains("preflight"));
+        assert!(failed.error.as_deref().unwrap().contains("account differs"));
+        assert_eq!(failed.claimed_at, None);
+        assert_eq!(failed.outcome, None);
+        let second = fixture.json(&["_run", "--id", &job.id, "--execute-reset"]);
+        assert_eq!(second["reset_requests_sent"], 0);
+        assert_eq!(store.show(&job.id).unwrap(), failed);
+        fixture.assert_read_only_requests();
+    });
 }
 
 #[test]
 fn server_reset_response_does_not_confirm_unchanged_usage() {
-    let fixture = Fixture::new();
-    fixture.scenario("unchanged");
-    let result = fixture.worker();
-    assert_eq!(result["job"]["outcome"], "reset");
-    let evidence = &result["job"]["evidence"];
-    assert_eq!(evidence["server_outcome"], "reset");
-    assert_eq!(evidence["verification"]["status"], "not_observed");
-    assert_eq!(evidence["verification"]["usage_reset_observed"], false);
-    assert_eq!(
-        evidence["verification"]["attempts"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
-    fixture.assert_one_consume_then_readonly();
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("unchanged");
+        let result = fixture.worker();
+        assert_eq!(result["job"]["outcome"], "reset");
+        let evidence = &result["job"]["evidence"];
+        assert_eq!(evidence["server_outcome"], "reset");
+        assert_eq!(evidence["verification"]["status"], "not_observed");
+        assert_eq!(evidence["verification"]["usage_reset_observed"], false);
+        assert_eq!(
+            evidence["verification"]["attempts"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
+        fixture.assert_one_consume_then_readonly();
+    });
 }
 
 #[test]
 fn readback_failure_preserves_successful_server_response_without_retry() {
-    let fixture = Fixture::new();
-    fixture.scenario("read-error");
-    let result = fixture.worker();
-    assert_eq!(result["job"]["status"], "completed");
-    assert_eq!(result["job"]["outcome"], "reset");
-    let evidence = &result["job"]["evidence"];
-    assert_eq!(evidence["server_outcome"], "reset");
-    assert_eq!(evidence["verification"]["status"], "read_failed");
-    let attempts = evidence["verification"]["attempts"].as_array().unwrap();
-    assert_eq!(attempts.len(), 3);
-    assert!(attempts.iter().all(|attempt| {
-        attempt["error"]
-            .as_str()
-            .unwrap()
-            .contains("mock usage lookup failed")
-            && attempt["snapshot"].is_null()
-    }));
-    fixture.assert_one_consume_then_readonly();
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("read-error");
+        let result = fixture.worker();
+        assert_eq!(result["job"]["status"], "completed");
+        assert_eq!(result["job"]["outcome"], "reset");
+        let evidence = &result["job"]["evidence"];
+        assert_eq!(evidence["server_outcome"], "reset");
+        assert_eq!(evidence["verification"]["status"], "read_failed");
+        let attempts = evidence["verification"]["attempts"].as_array().unwrap();
+        assert_eq!(attempts.len(), 3);
+        assert!(attempts.iter().all(|attempt| {
+            attempt["error"]
+                .as_str()
+                .unwrap()
+                .contains("mock usage lookup failed")
+                && attempt["snapshot"].is_null()
+        }));
+        fixture.assert_one_consume_then_readonly();
+    });
 }
 
 #[test]
 fn lost_response_keeps_unknown_outcome_and_records_state_change_readonly() {
-    let fixture = Fixture::new();
-    fixture.scenario("lost-response");
-    let result = fixture.worker();
-    assert_eq!(result["job"]["status"], "unknown");
-    assert!(result["job"]["outcome"].is_null());
-    let evidence = &result["job"]["evidence"];
-    assert!(evidence["server_outcome"].is_null());
-    assert!(
-        evidence["dispatch_error"]
-            .as_str()
-            .unwrap()
-            .contains("account/rateLimitResetCredit/consume")
-    );
-    assert_eq!(evidence["verification"]["status"], "inconclusive");
-    assert_eq!(evidence["verification"]["usage_reset_observed"], true);
-    assert_eq!(evidence["verification"]["credit_count_decreased"], true);
-    fixture.assert_one_consume_then_readonly();
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("lost-response");
+        let result = fixture.worker();
+        assert_eq!(result["job"]["status"], "unknown");
+        assert!(result["job"]["outcome"].is_null());
+        let evidence = &result["job"]["evidence"];
+        assert!(evidence["server_outcome"].is_null());
+        assert!(
+            evidence["dispatch_error"]
+                .as_str()
+                .unwrap()
+                .contains("account/rateLimitResetCredit/consume")
+        );
+        assert_eq!(evidence["verification"]["status"], "inconclusive");
+        assert_eq!(evidence["verification"]["usage_reset_observed"], true);
+        assert_eq!(evidence["verification"]["credit_count_decreased"], true);
+        fixture.assert_one_consume_then_readonly();
+    });
 }
 
 #[test]
 fn server_error_details_survive_in_job_record() {
-    let fixture = Fixture::new();
-    fixture.scenario("rpc-error");
-    let result = fixture.worker();
-    assert_eq!(result["job"]["status"], "unknown");
-    let error = result["job"]["error"].as_str().unwrap();
-    assert!(error.contains("account/rateLimitResetCredit/consume"));
-    assert!(error.contains("-32001"));
-    assert!(error.contains("mock reset rejected"));
-    assert!(result["job"]["evidence"]["server_outcome"].is_null());
-    fixture.assert_one_consume_then_readonly();
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("rpc-error");
+        let result = fixture.worker();
+        assert_eq!(result["job"]["status"], "unknown");
+        let error = result["job"]["error"].as_str().unwrap();
+        assert!(error.contains("account/rateLimitResetCredit/consume"));
+        assert!(error.contains("-32001"));
+        assert!(error.contains("mock reset rejected"));
+        assert!(result["job"]["evidence"]["server_outcome"].is_null());
+        fixture.assert_one_consume_then_readonly();
+    });
 }
 
 #[test]
 fn delayed_state_reflection_retries_only_reads() {
-    let fixture = Fixture::new();
-    fixture.scenario("delayed");
-    let result = fixture.worker();
-    let verification = &result["job"]["evidence"]["verification"];
-    assert_eq!(verification["status"], "confirmed");
-    let attempts = verification["attempts"].as_array().unwrap();
-    assert_eq!(attempts.len(), 2);
-    assert_eq!(attempts[0]["snapshot"]["available_reset_credits"], 1);
-    assert_eq!(attempts[1]["snapshot"]["available_reset_credits"], 0);
-    fixture.assert_one_consume_then_readonly();
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("delayed");
+        let result = fixture.worker();
+        let verification = &result["job"]["evidence"]["verification"];
+        assert_eq!(verification["status"], "confirmed");
+        let attempts = verification["attempts"].as_array().unwrap();
+        assert_eq!(attempts.len(), 2);
+        assert_eq!(attempts[0]["snapshot"]["available_reset_credits"], 1);
+        assert_eq!(attempts[1]["snapshot"]["available_reset_credits"], 0);
+        fixture.assert_one_consume_then_readonly();
+    });
 }
 
 #[test]
 fn account_switch_during_readback_cannot_confirm_reset() {
-    let fixture = Fixture::new();
-    fixture.scenario("account-mismatch");
-    let result = fixture.worker();
-    assert_eq!(result["job"]["outcome"], "reset");
-    let verification = &result["job"]["evidence"]["verification"];
-    assert_eq!(verification["status"], "read_failed");
-    assert!(
-        verification["attempts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|attempt| {
-                attempt["error"]
-                    .as_str()
-                    .unwrap()
-                    .contains("account differs")
-                    && attempt["snapshot"].is_null()
-            })
-    );
-    let requests = fixture.requests();
-    assert_eq!(
-        requests
-            .iter()
-            .filter(|request| request["method"] == "account/rateLimitResetCredit/consume")
-            .count(),
-        1
-    );
+    for_each_verified_version(|_, fixture| {
+        fixture.scenario("account-mismatch");
+        let result = fixture.worker();
+        assert_eq!(result["job"]["outcome"], "reset");
+        let verification = &result["job"]["evidence"]["verification"];
+        assert_eq!(verification["status"], "read_failed");
+        assert!(
+            verification["attempts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|attempt| {
+                    attempt["error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("account differs")
+                        && attempt["snapshot"].is_null()
+                })
+        );
+        let requests = fixture.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request["method"] == "account/rateLimitResetCredit/consume")
+                .count(),
+            1
+        );
+    });
 }
 
 const NATIVE_FIXTURE: &str = r#"
@@ -504,7 +539,7 @@ int main(int argc, char **argv) {
         unsigned long id = id_text ? strtoul(id_text + 5, NULL, 10) : 0;
         int redeemed = read_number("redeemed");
         if (strstr(line, "\"method\":\"initialize\"")) {
-            printf("{\"id\":%lu,\"result\":{}}\n", id);
+            printf("{\"id\":%lu,\"result\":{\"userAgent\":\"codex-cli/" FIXTURE_VERSION "\",\"codexHome\":\"/synthetic-login\",\"platformFamily\":\"unix\",\"platformOs\":\"linux\"}}\n", id);
         } else if (strstr(line, "\"method\":\"initialized\"")) {
             continue;
         } else if (strstr(line, "\"method\":\"account/read\"")) {
